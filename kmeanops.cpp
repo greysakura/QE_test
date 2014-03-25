@@ -217,8 +217,8 @@ public:
 //这里我们来写我们的归一化函数
     void mat_normalization(Mat &src, Mat &dst)
     {
-        cout << "K = "<<src.cols << endl; // K
-        cout << "image_count = " << src.rows << endl;// image_count
+//        cout << "K = "<<src.cols << endl; // K
+//        cout << "image_count = " << src.rows << endl;// image_count
         for(int i=0; i < src.rows; ++i){
             double value_sum = 0;
             for(int j=0; j < src.cols; ++j){//K
@@ -226,7 +226,7 @@ public:
             }
             value_sum = sqrt(value_sum);
             //这个地方都出现负值了。这肯定是有问题的。建议改成double如何？
-            cout << "value_sum[" << i << "]: " <<value_sum <<endl;
+            //cout << "value_sum[" << i << "]: " <<value_sum <<endl;
             for(int j=0; j < src.cols;++j){
                     if(src.at<double>(i,j)==0){
                         dst.at<double>(i,j) = 0;
@@ -275,64 +275,85 @@ public:
             float Cal_C = abs(Cal_A - Cal_B);
             Mat_distance = Mat_distance + pow(Cal_C,2);
         }
-        float Mat_distance_233 = sqrt(sqrt(Mat_distance));
+        float Mat_distance_233 = sqrt(Mat_distance);
         //没有办法，太大了，只能进行两次开方
         return Mat_distance_233;
     }
 
 ////新图片的descriptor与原cluster center之间进行比对的函数。
-    void find_cluster_center(Mat &descriptor_mat, Mat &cluster_mat, Mat &cluster_output, Mat &cluster_all)
-    {
-        //先统计一共多少个descriptor
-        if(descriptor_mat.cols != 128){
-            return;
-        }
-        if(cluster_mat.cols != 128){
-            return;
-        }
-        //
-        Mat cluster_temp = Mat::zeros(1,cluster_mat.rows,CV_32S);
-        Mat cluster_all_temp = Mat::zeros(descriptor_mat.rows, cluster_mat.rows, CV_32F);
-        cout << descriptor_mat.rows << " " << cluster_mat.rows <<endl;
-        Mat dump_A;
-        Mat dump_B;
+void find_cluster_center(Mat &descriptor_mat, Mat &cluster_mat, Mat &cluster_output, Mat &cluster_all)
+{
+    //先统计一共多少个descriptor
+    if(descriptor_mat.cols != 128){
+        return;
+    }
+    if(cluster_mat.cols != 128){
+        return;
+    }
+    //
+    Mat cluster_temp = Mat::zeros(1,cluster_mat.rows,CV_32S);
+    Mat cluster_all_temp = Mat::zeros(descriptor_mat.rows, cluster_mat.rows, CV_32F);
+    cout << descriptor_mat.rows << " " << cluster_mat.rows <<endl;
+    Mat dump_A;
+    Mat dump_B;
 //        Mat dump_C;
-        for(int i=0; i < descriptor_mat.rows; ++i)
+    for(int i=0; i < descriptor_mat.rows; ++i)
+    {
+        float dump = 0;
+        float dump_cal = 0;
+        int cluster_marker = 0;
+        for(int j =0; j < cluster_mat.rows; ++j)
         {
-            float dump = 0;
-            float dump_cal = 0;
-            int cluster_marker = 0;
-            for(int j =0; j < cluster_mat.rows; ++j)
-            {
-                descriptor_mat.row(i).copyTo(dump_A);
+            descriptor_mat.row(i).copyTo(dump_A);
 //                cout << dump_A << endl;
-                cluster_mat.row(j).copyTo(dump_B);
-                // 问题是，这两个并不都是float啊。cluster那个是，所以要对descriptor进行强制的类型转换。
-                dump_A.convertTo(dump_A, CV_32F);
+            cluster_mat.row(j).copyTo(dump_B);
+            // 问题是，这两个并不都是float啊。cluster那个是，所以要对descriptor进行强制的类型转换。
+            dump_A.convertTo(dump_A, CV_32F);
+            dump_B.convertTo(dump_B, CV_32F);
 //                cout << dump_A.rows << " " << dump_A.cols << endl;
 //                cout << dump_B.rows << " " << dump_B.cols << endl;
-                //cout << dump_B << endl;
-                dump_cal = calculate_dis(dump_A, dump_B);
-                //cout << dump_cal << endl;
-                cluster_all_temp.at<float>(i,j) = dump_cal;
-                //我们要记录的是最小值。千万小心。
-                if(j==0){
-                    dump = dump_cal;
-                }
-                if(dump > dump_cal){
-                    dump = dump_cal;
-                    cluster_marker = j;
-                }
-                dump_cal = 0;
-                dump_A.release();
-                dump_B.release();
-//                dump_C.release();
+            //cout << dump_B << endl;
+            dump_cal = calculate_dis(dump_A, dump_B);
+            //cout << dump_cal << endl;
+            cluster_all_temp.at<float>(i,j) = dump_cal;
+            //我们要记录的是最小值。千万小心。
+            if(j==0){
+                dump = dump_cal;
             }
-            cluster_temp.at<int>(0,cluster_marker) = cluster_temp.at<int>(0,cluster_marker) + 1;
+            if(dump > dump_cal){
+                dump = dump_cal;
+                cluster_marker = j;
+            }
+            dump_cal = 0;
+            dump_A.release();
+            dump_B.release();
+//                dump_C.release();
         }
-        cluster_temp.copyTo(cluster_output);
-        cluster_all_temp.copyTo(cluster_all);
+        cluster_temp.at<int>(0,cluster_marker) = cluster_temp.at<int>(0,cluster_marker) + 1;
     }
+    cluster_temp.copyTo(cluster_output);
+    cluster_all_temp.copyTo(cluster_all);
+}
+
+void write_KeyPoint(vector<KeyPoint> &input_kpt, ostream &out){
+    out << input_kpt.size() << endl;
+    for(size_t i=0; i< input_kpt.size(); ++i){
+            out << input_kpt[i].pt.x << " " << input_kpt[i].pt.y << " ";
+            out << input_kpt[i].size << " " << input_kpt[i].angle << " ";
+            out << input_kpt[i].response << " " << input_kpt[i].octave << " ";
+            out << input_kpt[i].class_id << endl;
+        }
+}
+
+void write_SIFT_descriptor(Mat &input_SIFT_mat, ostream &out){
+    out << input_SIFT_mat.rows << endl;
+    for(int i=0; i < input_SIFT_mat.rows; ++i){
+        for(int j=0; j < input_SIFT_mat.cols; ++j){
+            out << input_SIFT_mat.at<float>(i,j) << " ";
+        }
+        out << endl;
+    }
+}
 
 class CBrowseDir
 {
@@ -414,15 +435,11 @@ bool CBrowseDir::BeginBrowse(const char *filespec)
 bool CBrowseDir::BrowseDir(const char *dir,const char *filespec)
 {
     _chdir(dir);
-
-    // change
     char suffix_dir[] = "/image_index.txt";//后缀名
     int len_dir = strlen(dir)+strlen(suffix_dir)+1;
     char buf_dir[len_dir];
     snprintf(buf_dir, len_dir, "%s%s", dir, suffix_dir); buf_dir[len_dir-1]=0;//
-
     cout << dir << endl;
-
     if (!access(buf_dir,0)){
     ofstream out(buf_dir, ios::trunc);//干掉原先的文件
     out.close();
@@ -430,12 +447,6 @@ bool CBrowseDir::BrowseDir(const char *dir,const char *filespec)
     ofstream out(buf_dir);//踹门！写文件啦！
     out.close();
     cout<<"file " << buf_dir << " does not exist."<<endl;}
-    //成功了。能接着我之前的文件从后面写。这样我们可以写循环了。
-    //fstream foi(buf_go, ios::in | ios::out | ios::app);
-    //foi << filename << endl;
-
-    // change
-
     //首先查找dir中符合要求的文件, in io.h
     long hFile;
     _finddata_t fileinfo;// what?
@@ -443,8 +454,6 @@ bool CBrowseDir::BrowseDir(const char *dir,const char *filespec)
     // filespec? jpg后缀
     if ((hFile=_findfirst(filespec,&fileinfo)) != -1)
     {
-        //我们需要一个计数器。用j好了。
-        //int j = 0;
         do
         {
             //检查是不是目录
@@ -452,13 +461,14 @@ bool CBrowseDir::BrowseDir(const char *dir,const char *filespec)
             if (!(fileinfo.attrib & _A_SUBDIR))
             {
                 char filename[_MAX_PATH];// length: _MAX_PATH
+                memset(filename,0,_MAX_PATH);
                 strcpy(filename,dir);
                 strcat(filename,fileinfo.name);// what is fileinfo.name?
                 //here we GOOOOOOOOOOOOOOOOOO!
 
-                Mat tmp = imread(filename,0);// read it into tem
-                Mat image; // create a image?
-                tmp.convertTo(image, CV_32F);
+                //Mat tmp;// read it into tem
+                Mat image_scene_tmp = imread(filename,0); // create a image?
+                //image_scene_tmp.convertTo(tmp, CV_32F);
                 //
                 char filename02[_MAX_PATH];
                 memset(filename02, 0, _MAX_PATH);
@@ -469,80 +479,59 @@ bool CBrowseDir::BrowseDir(const char *dir,const char *filespec)
                 itoa(count_lalala,filename03,10);
                 strcat(filename02,filename03);
                 strcat(filename02,".jpg");
-                imwrite(filename02,image);
-                //
-                //我觉得这里读图片可能是有问题的
-
-                // let us resize the image.
-//                float *out = image.ptr<float>(0);// pointer, pointing at the output image
-//                unsigned char *in  = tmp.ptr<unsigned char>(0); // char??
-//
-//                for (size_t i=tmp.rows*tmp.cols; i > 0; i--)
-//                {
-//                    *out = (float(in[0] + in[1] + in[2]))/3.0f;  //  averaging 3 channels.
-//                    out++; // move the pointer, only one channel.
-//                    in+=3; // move the pointer, 3 channels.
-//                }
-//                // resize。原图片太大了。
-                Mat dst;
-                cv::resize(image, dst, Size(), 0.25, 0.25, INTER_CUBIC);
-                HessianAffineParams par; // kind of pre-defined
+                imwrite(filename02,image_scene_tmp);
+                cv::resize(image_scene_tmp, image_scene_tmp, Size(), 0.25, 0.25, INTER_CUBIC);
                 double t1 = 0;//这个是计时用的
                 {
-                    // copy params
-                    PyramidParams p; // struct
-                    p.threshold = par.threshold;
-
-                    AffineShapeParams ap; // struct
-                    ap.maxIterations = par.max_iter;
-                    ap.patchSize = par.patch_size;
-                    ap.mrSize = par.desc_factor;
-
-                    SIFTDescriptorParams sp;  //SIFT?
-                    sp.patchSize = par.patch_size;
-
-                    AffineHessianDetector detector(dst, p, ap, sp);//action?这一步是进行计算的。
                     t1 = getTime(); //?
-                    g_numberOfPoints = 0;
-                    detector.detectPyramidKeypoints(dst);
-
+                    int minHessian = 400;
+                    SurfFeatureDetector detector(minHessian);
+                    vector<KeyPoint> keypoints_scene_tmp;
+                    detector.detect( image_scene_tmp, keypoints_scene_tmp );
+                    SiftDescriptorExtractor extractor;
+                    Mat descriptors_scene_tmp;
+                    extractor.compute( image_scene_tmp, keypoints_scene_tmp, descriptors_scene_tmp );
                     //在这里改变一下计数值
                     //detector.key_count = g_numberOfPoints;
 
                     //因为detector 本身是 AffineHessianDetector的一个例子，而AffineHessianDetector里面有对g_numberOfPoints进行变化
-                    cout << "Detected " << g_numberOfPoints << " keypoints and " << g_numberOfAffinePoints << " affine shapes in " << getTime()-t1 << " sec." << endl;
+                    cout << "Detected " << keypoints_scene_tmp.size() << " keypoints in " << getTime()-t1 << " sec." << endl;
                     // write the file
-                    char suffix[] = ".hesaff.txt";//后缀名
+                    char suffix_SIFT[] = ".SIFT.txt";//后缀名
+                    char suffix_kpts[] = ".kpts.txt";
                     // change
                     char filename_short[_MAX_PATH];
                     memset(filename_short, 0, _MAX_PATH);//还是初始化一下比较安全啊
-                    //memset(filename_short,);
                     memcpy(filename_short, filename, sizeof(char)*(strlen(filename)-4));//把“.jpg”4个字节去掉
 
-                    //printf("short filename %s\n", filename_short);
-                    //printf("filename %s\n", filename);
-                    // change
-                    int len = strlen(filename_short)+strlen(suffix)+1;
-                    char buf_go[len];
-                    //memset(buf_go,len,0);
-                    snprintf(buf_go, len, "%s%s", filename_short, suffix); buf_go[len-1]=0;//
-                    if (!access(buf_go,0)){
-                    ofstream out1(buf_go, ios::trunc);//干掉原先的文件
-                    out1.close();
-                    //cout<<"file " << suffix << " exist."<<endl;
-                    }else{
-                    ofstream out1(buf_go);//踹门！写文件啦！
-                    out1.close();
-                    //cout<<"file " << suffix << " does not exist."<<endl;
-                    }
+                    int len_SIFT = strlen(filename_short)+strlen(suffix_SIFT)+1;
+                    char buf_SIFT[len_SIFT];
+                    memset(buf_SIFT,0,len_SIFT);
+                    snprintf(buf_SIFT, len_SIFT, "%s%s", filename_short, suffix_SIFT);buf_SIFT[len_SIFT-1] = 0;//
+
+                    int len_kpts = strlen(filename_short)+strlen(suffix_kpts)+1;
+                    char buf_kpts[len_kpts];
+                    memset(buf_kpts,0,len_kpts);
+                    snprintf(buf_kpts, len_kpts, "%s%s", filename_short, suffix_kpts);buf_kpts[len_kpts-1] = 0;//
                     //
-                    //这里有个问题。没有考虑到，如果原来这个文件在的话怎么办呢？所以做一点儿小改动：ios::trunc
-                    ofstream out3(buf_go);// Here comes the output. "buf" is the outgoing stream with length of "len". "out" is a output stream.
-                    ofstream out2(buf_dir, ios::out | ios::app);
-                    out2 << filename << " ";
-                    detector.exportKeypoints(out3, out2); // using the function "exportKeypoints". Target: "out";  Source: "detector"
-                    out2.close();
-                    out3.close();
+                    if(count_lalala < 40){
+                        int miaommm = 0;
+                    }
+                    ofstream out_index;
+                    ofstream out_SIFT;
+                    ofstream out_kpts;
+                    out_index.open(buf_dir, ios::out|ios::app);// For: "/image_index.txt"
+                    out_index << filename << " " << keypoints_scene_tmp.size() << endl;
+                    if (access(buf_dir,0)){
+                        cout << "Warning!!! Unable to open file." << endl;
+                        out_index.close();}else{
+                    out_index.close();}
+                    out_SIFT.open(buf_SIFT,ios::out|ios::trunc);
+                    write_SIFT_descriptor(descriptors_scene_tmp, out_SIFT);
+                    out_SIFT.close();
+                    out_kpts.open(buf_kpts,ios::out|ios::trunc);
+                    write_KeyPoint(keypoints_scene_tmp, out_kpts);
+                    out_kpts.close();
                     //写到这儿，还是在这张图片里
                     //for (int i = 0; i <= detector.key_count; ++i){
                     //Keypoint &k = detector.keys[j];
@@ -672,52 +661,63 @@ int main()
 
     //开始遍历
     statdir.BeginBrowse("*.jpg*");
+
     printf("Number of images: %d\nNumber of sub_dir:%d\n",statdir.GetFileCount(),statdir.GetSubdirCount());
 
-    //here
-    //后面的工作，1，确定有多少个keypoint（num_of_keys）。这需要读取各个保存下来的特征文件。
-    //2. 弄一个足够大的矩阵
-    //3. Kmean
+    char suffix_dir_statistics[] = "/image_database_statistics.txt";//
+    int len_dir_statistics = strlen(buf)+strlen(suffix_dir_statistics)+1;
+    char buf_dir_statistics[len_dir_statistics];
+    snprintf(buf_dir_statistics, len_dir_statistics, "%s%s", buf, suffix_dir_statistics); buf_dir_statistics[len_dir_statistics-1]=0;//
+
+    ofstream out_statistics;
+    out_statistics.open(buf_dir_statistics, ios::out|ios::trunc);
+    out_statistics << statdir.GetFileCount() << endl;
+    out_statistics.close();
 
     char suffix_dir[] = "/image_index.txt";//
     int len_dir = strlen(buf)+strlen(suffix_dir)+1;
     char buf_dir[len_dir];
     snprintf(buf_dir, len_dir, "%s%s", buf, suffix_dir); buf_dir[len_dir-1]=0;//
 
-    //下面的部分我们把图片总数给加到刚才的文件里
-    std::ifstream t;
-    int t_length;
-    t.open(buf_dir);      // open input file
-    t.seekg(0, std::ios::end);    // go to the end
-    t_length = t.tellg();           // report location (this is the length)
-    t.seekg(0, std::ios::beg);    // go back to the beginning
-    char t_buffer[t_length];    // allocate memory for a buffer of appropriate dimension
-    memset(t_buffer, 0, t_length);//不初始化会出问题的
-    t.read(t_buffer, t_length);       // read the whole file into the buffer
-    t.close(); //t完成了使命
-
-    ofstream out;
-    out.open(buf_dir, ios::out|ios::trunc);
-    out << statdir.GetFileCount() << endl << t_buffer << endl;
-    out.close();
+//    //下面的部分我们把图片总数给加到刚才的文件里
+//    std::ifstream read_index;
+//    int read_index_length = 0;
+//    read_index.open(buf_dir,ios::in|ios::binary);      // open input file
+//    read_index.seekg(0, std::ios::end);    // go to the end
+//    read_index_length = read_index.tellg();           // report location (this is the length)
+//    read_index.seekg(0, std::ios::beg);    // go back to the beginning
+//    char read_index_buffer[read_index_length];    // allocate memory for a buffer of appropriate dimension
+//    memset(read_index_buffer, 0, read_index_length);//不初始化会出问题的
+//    read_index.read(read_index_buffer, read_index_length);       // read the whole file into the buffer
+//    read_index.close(); //t完成了使命
+//    cout << read_index_buffer << endl;
+//
+//    ofstream out;
+//    out.open(buf_dir, ios::out|ios::trunc);
+//    out << statdir.GetFileCount() << endl << read_index_buffer << endl;
+//    out.close();
     //然后我们可以开始弄kmeans了。 另外刚才那步其实略多余。
 
     ifstream in_index;
-    ifstream in_dir;
+    ifstream in_statistics;
+    ifstream in_SIFT;
     in_index.open(buf_dir, ios::in);
+    in_statistics.open(buf_dir_statistics, ios::in);
     char dir_buffer[_MAX_PATH];
     memset(dir_buffer, 0, _MAX_PATH);
+
     int image_count = 0;//图片总数
     int des_count = 0;
     int des_count_all = 0;
-    in_index >> image_count;
+    in_statistics >> image_count;
+    in_statistics.close();
 
     vector<Mat> Descriptor_company;
 
     //从这个循环开始，我们要一个一个的对付图片。读取他们的descriptor，完成矩阵拼接。
     //我们是不是得弄个足够大的Mat容器？
 
-    int num_of_cluster = 64; // 8类
+    int num_of_cluster = 32; // 8类
     Mat bestLabels, centers, clustered;
     Mat des_for_each = Mat::zeros(image_count, 1,CV_32S);//这个用来保存每张图片里的descriptor的数量，后面有用
     int l;
@@ -732,40 +732,23 @@ int main()
         char dir_front[_MAX_PATH];
         memset(dir_front, 0, _MAX_PATH);//还是初始化一下比较安全啊
         memcpy(dir_front, dir_buffer, sizeof(char)*(strlen(dir_buffer)-4));//把“.jpg”4个字节去掉
-        char suffix[] = ".hesaff.txt";
+        char suffix[] = ".SIFT.txt";
         int len = strlen(dir_front)+strlen(suffix)+1;
         char buf_hesaff[len];
         //memset(buf_go,len,0);
         snprintf(buf_hesaff, len, "%s%s", dir_front, suffix); buf_hesaff[len-1]=0;//
         //
-        in_dir.open(buf_hesaff, ios::in);
+        in_SIFT.open(buf_hesaff, ios::in);
 
         // mat merge
         Mat p = Mat::zeros(des_count, 128, CV_32F);// for kmeans
-        //
-        int whatever = 0;
-        //少读了两个
-        in_dir >> whatever;
-        in_dir >> whatever;
-        float other_para[des_count][5];
         int SIFT_part[des_count][128];
-
-
         for(int i = 0; i < des_count; ++i){
-        //提取前5个分量
-            for(int j = 0; j < 5; ++j){
-                in_dir >> other_para[i][j];
-                //cout << other_para[i][j] << " " ;
-            }
-            //cout<<endl;
-
         //SIFT的128个分量
             for(int k = 0; k < 128; ++k){
-                in_dir >> SIFT_part[i][k];
-                p.at<float>(i,k) = SIFT_part[i][k];
-                //cout << SIFT_part[i][k] << " " ;
+                in_SIFT >> SIFT_part[i][k];
+                p.at<float>(i,k) = float(SIFT_part[i][k]);
             }
-            //cout<< "\n" <<endl;
         }
         if(l == 0){
             Descriptor_company.push_back(p);
@@ -779,58 +762,40 @@ int main()
         }
 
     }
+    in_index.close();
     //CSV输出
     ofstream out_csv;
     out_csv.open("C:/Cassandra/here/kmean.csv",ios::out | ios::trunc);
     exportKeypoints_CSV(Descriptor_company[0], out_csv);
     out_csv.close();
 
-
-
-
-
     //Kmeans
     cv::kmeans(Descriptor_company[0], num_of_cluster, bestLabels,
-            TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 10000, 0.1),
-            3, KMEANS_RANDOM_CENTERS, centers);
-    for(int i=0; i<des_count_all; ++i) {
-//      clustered.at<float>(i/src.cols, i%src.cols) = (float)(colors[bestLabels.at<int>(0,i)]);//上色
-//      cout << bestLabels.at<int>(0,i) << " " <<
-//              colors[bestLabels.at<int>(0,i)] << " " <<
-//              clustered.at<float>(i/src.cols, i%src.cols) << " " <<
-//              endl;
-        //cout << bestLabels.at<int>(0,i) << " ";
-    }
-    //cout << endl;
+            TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 100, 0.1),
+            30, KMEANS_RANDOM_CENTERS, centers);
 
     //小插曲。这里我们来统计一下每一幅图片里各个词汇的个数。那么我们先做一个mat
     vector<Mat> count_the_des;
 
     Mat num_by_des = Mat::zeros(image_count,num_of_cluster,CV_32S); // 这个用来判断每张图片里有没有某一个descriptor
     Mat num_by_des_sum = Mat::zeros(1,num_of_cluster,CV_32S);//每个类别里总共的descriptor数？
-    Mat des_max_frequence = Mat::zeros(1,num_of_cluster,CV_32S); //这个Mat用来记录每张图片里出现频率最高的词汇的词汇频率
+    Mat des_max_frequence = Mat::zeros(1,image_count,CV_32S); //这个Mat用来记录每张图片里出现频率最高的词汇的词汇频率
 
     int bestLabel_position = 0;//ii是descriptor的序号标志
 
     for(int i=0; i < image_count;++i){
         //Frozen是个中间过渡用的Mat
         Mat VW_temp= Mat::zeros(1,num_of_cluster,CV_32S);
-        int VW_count_temp = int(des_for_each.at<int>(i,0));//这一步已经对了。能正确地读出一张图片里的descriptor数。
-        //cout << "VW_count_temp = " << VW_count_temp <<endl;
+        int VW_count_temp = des_for_each.at<int>(i,0);//这一步已经对了。能正确地读出一张图片里的descriptor数。
         for(int j=0; j < VW_count_temp; ++j){
-            //p.at<float>(bestLabels.at<float>(ii,1),1) = int(p.at<float>(bestLabels.at<float>(ii,1),1)) + 1;
-            //count_the_des.push_back(p);
-            //cout << bestLabels.at<int>(j,0) << endl;
-            //cout << bestLabels.at<int>(0,ii) << " ";
-            VW_temp.at<int>(0,(bestLabels.at<int>(0,bestLabel_position))) = VW_temp.at<int>(0,(bestLabels.at<int>(0,bestLabel_position))) +1;
+            //VW_count_temp是这张图片里的keypoints的数量
+            VW_temp.at<int>(0,(bestLabels.at<int>(bestLabel_position, 0))) = VW_temp.at<int>(0,(bestLabels.at<int>(bestLabel_position, 0))) +1;
             ++bestLabel_position;
         }
-        for(int j=0; j < num_of_cluster; ++j){
-            //cout <<endl << VW_temp.at<int>(0,j) << " ";
-        }
+//        cout << VW_temp << endl;
         count_the_des.push_back(VW_temp);
-        //cout << endl;
     }
+
     char suffix_tf_idf_dir[] = "/tf_idf.txt";//
     int len_tf_idf_dir = strlen(buf)+strlen(suffix_tf_idf_dir)+1;
     char buf_dir2[len_tf_idf_dir];
@@ -841,7 +806,7 @@ int main()
     tf_idf_out << "Step1: " << endl;
     tf_idf_out << image_count << " " << des_count_all << " " << num_of_cluster << endl;
     for(int i=0; i < image_count; ++i){
-        des_max_frequence.at<int>(0,i) = 0;
+        des_max_frequence.at<int>(0,i) = 0;//其实可以不写这一句
         for(int j=0; j < num_of_cluster; ++j){
             tf_idf_out << count_the_des[i].at<int>(0,j) << " ";
             if(count_the_des[i].at<int>(0,j) > des_max_frequence.at<int>(0,i)){
@@ -870,9 +835,6 @@ int main()
         tf_idf_out << des_max_frequence.at<int>(0,i) << " ";
     }
     tf_idf_out << endl;
-    // tf-idf score!
-    // First, tf
-    //建议这里全面64F化比较好
     Mat des_tf = Mat::zeros(image_count,num_of_cluster,CV_64F);
     Mat des_idf = Mat::zeros(1,num_of_cluster,CV_64F);
     Mat des_tf_idf = Mat::zeros(image_count,num_of_cluster,CV_64F);
@@ -883,15 +845,6 @@ int main()
             des_tf.at<double>(j,i) = 0.5 + 0.5 * (double(count_the_des[j].at<int>(0,i))/double(des_max_frequence.at<int>(0,j)));
             if(j==0){
             des_idf.at<double>(0,i) = log10((2.0 + double(image_count))/(1.0 + double(num_by_des_sum.at<int>(0,i))));}
-//            if(count_the_des[j].at<int>(0,i)==des_max_frequence.at<int>(0,j)){
-////                cout << float(count_the_des[j].at<int>(0,i) / des_max_frequence.at<int>(0,j)) << endl;
-////                cout << 0.5 * (count_the_des[j].at<int>(0,i) / des_max_frequence.at<int>(0,j)) << endl;
-////                cout << "count_the_des["<< j <<"].at<int>(0,"<< i <<"): " << count_the_des[j].at<int>(0,i) << endl;
-////                cout << "des_max_frequence.at<int>(0,"<<j<<"): " << des_max_frequence.at<int>(0,j) << endl;
-////                tf_idf_out << "count_the_des["<< j <<"].at<int>(0,"<< i <<"): " << count_the_des[j].at<int>(0,i) << endl;
-////                tf_idf_out << "des_max_frequence.at<int>(0,"<<j<<"): " << des_max_frequence.at<int>(0,j) << endl;
-////                tf_idf_out << "des_tf.at<double>("<<j<<","<<i<<"): " << des_tf.at<double>(j,i) <<endl;
-//            }
             des_tf_idf.at<double>(j,i) = des_tf.at<double>(j,i) * des_idf.at<double>(0,i);// i和j又搞错了哦亲
             tf_idf_out << des_tf.at<double>(j,i) << " ";
         }
@@ -913,9 +866,6 @@ int main()
     //归一化
     Mat tf_idf_normalized = des_tf_idf.clone();
     mat_normalization(des_tf_idf,tf_idf_normalized);
-//    tf_idf_out << "tf_idf_normalized:" << endl;
-//    tf_idf_out << tf_idf_normalized<< endl;
-
     vector<Mat> all_des;
     for(int i=0; i < image_count; ++i){
         if(i == 0){
@@ -943,62 +893,68 @@ int main()
     //tf_idf_out << "centers.cols: " << centers.cols << endl;
 
 /////////下面是对新图片进行descriptor提取的部分
-    Mat new_descriptor;//object图片的128维SIFT矩阵
-    vector<KeyPoint> object_image_KeyPoint;
 //    Mat tmptmp;
     //接下来我们读一张新的图片？
-    Mat img_object_src = imread("C:/Cassandra/all_souls_000027.jpg",0);// read it into
-    Mat img_object;
-    img_object_src.convertTo(img_object, CV_32F);
+    char new_coming_file[] = "C:/Cassandra/all_souls_000027.jpg";
+    Mat img_object = imread(new_coming_file,0);// read it into
+    //Mat img_object;
+    //img_object_src.convertTo(img_object, CV_32F);
     if((img_object.rows > 500)||(img_object.cols) > 500){
     cv::resize(img_object, img_object, Size(), 0.25, 0.25, INTER_CUBIC);
     }
     if(img_object.empty())
 	{
+	    cout << "Unable to open image."<<endl;
 		return -1;
 	}
 	imwrite("C:/Cassandra/all_souls_000027_grey.jpg",img_object);
-//	dst_image.convertTo(tmptmp,CV_32FC1,1.0/255);
-//    Mat tmptmp(dst_image.rows, dst_image.cols, CV_32FC1, Scalar(0)); // 仅仅是用来进行数据处理的，不好看
-// let us resize the image.
-//    float *out233 = tmptmp.ptr<float>(0);// pointer, pointing at the output image
-//    unsigned char *in233  = dst_image.ptr<unsigned char>(0); // char??
 
-//    for (size_t i=dst_image.rows*dst_image.cols; i > 0; i--)
-//        {
-//            *out233 = (float(in233[0] + in233[1] + in233[2]))/3.0f;  //  averaging 3 channels.
-//            out233++; // move the pointer, only one channel.
-//            in233+=3; // move the pointer, 3 channels.
-//        }
-//    namedWindow("haha", CV_WINDOW_AUTOSIZE);
-//    imshow("haha",tmptmp);
-//    waitKey();
-    PyramidParams p02; // struct
-    HessianAffineParams par02;
-    p02.threshold = par02.threshold;
-    AffineShapeParams ap02; // struct
-    ap02.maxIterations = par02.max_iter;
-    ap02.patchSize = par02.patch_size;
-    ap02.mrSize = par02.desc_factor;
-    SIFTDescriptorParams sp02;  //SIFT?
-    sp02.patchSize = par02.patch_size;
-    AffineHessianDetector detector01(img_object, p02, ap02, sp02);
+    int minHessian = 400;
+    SurfFeatureDetector detector(minHessian);
+    vector<KeyPoint> object_image_KeyPoint;
+    detector.detect( img_object, object_image_KeyPoint );
+    SiftDescriptorExtractor extractor;
+    Mat new_descriptor;//object图片的128维SIFT矩阵
+    extractor.compute( img_object, object_image_KeyPoint, new_descriptor );
     g_numberOfPoints = 0;
-    detector01.detectPyramidKeypoints(img_object);
-    detector01.outputKeypoints(new_descriptor,object_image_KeyPoint);
+    //
+    char suffix_SIFT[] = ".SIFT.txt";//后缀名
+    char suffix_kpts[] = ".kpts.txt";
+    // change
+    char filename_short[_MAX_PATH];
+    memset(filename_short, 0, _MAX_PATH);//还是初始化一下比较安全啊
+    memcpy(filename_short, new_coming_file, sizeof(char)*(strlen(new_coming_file)-4));//把“.jpg”4个字节去掉
+
+    int len_SIFT = strlen(filename_short)+strlen(suffix_SIFT)+1;
+    char buf_SIFT[len_SIFT];
+    int len_kpts = strlen(filename_short)+strlen(suffix_kpts)+1;
+    char buf_kpts[len_kpts];
+    snprintf(buf_SIFT, len_SIFT, "%s%s", filename_short, suffix_SIFT);buf_SIFT[len_SIFT-1] = 0;//
+    snprintf(buf_kpts, len_kpts, "%s%s", filename_short, suffix_kpts);buf_kpts[len_kpts-1] = 0;//
+    //
+    char suffix_dir_extra[] = "/new_image_index.txt";//
+    int len_dir_extra = strlen(buf)+strlen(suffix_dir_extra)+1;
+    char buf_dir_extra[len_dir_extra];
+    snprintf(buf_dir_extra, len_dir_extra, "%s%s", buf, suffix_dir_extra); buf_dir_extra[len_dir_extra-1]=0;//
+    ofstream out_index;
+    ofstream out_SIFT;
+    ofstream out_kpts;
+    out_index.open(buf_dir_extra, ios::out | ios::app);// For: "/image_index.txt"
+    out_SIFT.open(buf_SIFT,ios::out|ios::trunc);
+    write_SIFT_descriptor(new_descriptor, out_SIFT);
+    out_kpts.open(buf_kpts,ios::out|ios::trunc);
+    out_index << new_coming_file << " " << new_descriptor.size() << endl;
+    write_KeyPoint(object_image_KeyPoint, out_kpts);
+    out_index.close();
+    out_SIFT.close();
+    out_kpts.close();
+    //
     ofstream t_extra_output;
     t_extra_output.open("C:/Cassandra/here/new_image_keys.txt",ios::out|ios::trunc);
-    detector01.exportKeypoints_Extra(t_extra_output);
-
-
+    //detector01.exportKeypoints_Extra(t_extra_output);
     //cout << "new_descriptor: "<< new_descriptor << endl;
     cout << "new_descriptor.rows: " << new_descriptor.rows << " new_descriptor.cols: " << new_descriptor.cols << endl;
     cout << "centers.rows: " << centers.rows << " centers.cols: " << centers.cols << endl;
-    //cout << typeof(centers) << endl;
-//    tf_idf_out << "AAA: "<< endl;
-//    tf_idf_out << AAA << endl;
-//    tf_idf_out << "centers " << endl;
-//    tf_idf_out << centers << endl;
     //从这里开始，每个descriptor去跟所有的cluster center去计算距离
     //还是写个函数吧
     Mat new_des_cluster;
@@ -1008,12 +964,12 @@ int main()
     cout << "new_des_cluster.rows: " << new_des_cluster.rows << " new_des_cluster.cols: " << new_des_cluster.cols << endl;
 //    tf_idf_out << "new_des_cluster.rows: " << new_des_cluster.rows << " new_des_cluster.cols: " << new_des_cluster.cols << endl;
 //    cout << new_des_cluster << endl;
-    tf_idf_out << new_des_cluster << endl;
+    t_extra_output << new_des_cluster << endl;
     cout << "object_cluster.rows: " << object_cluster.rows << " object_cluster.cols: " << object_cluster.cols << endl;
-    tf_idf_out << "object_cluster.rows: " << object_cluster.rows << " object_cluster.cols: " << object_cluster.cols << endl;
+    t_extra_output << "object_cluster.rows: " << object_cluster.rows << " object_cluster.cols: " << object_cluster.cols << endl;
     //cout << object_cluster << endl;
 //    tf_idf_out << object_cluster << endl;
-    tf_idf_out.close();
+    t_extra_output.close();
 
 //    现在开始，VW的距离比较过程
     Mat New_VW;
@@ -1037,81 +993,86 @@ int main()
     cout << "min value: " << min_store << endl;
     cout << "min location: " << min_location << endl;
 
-    // RANSAC匹配
-    //Mat H = findHomography( obj, scene, CV_RANSAC );
-    //vector<DMatch> RANSAC_matches;
-    //vector<Point2f> train_pts, query_pts;
-    //vector<unsigned char> match_mask;
-    //BFMatcher desc_matcher(NORM_HAMMING);
+
+    ////3/24日到这里
+
+
     int key_image_count = 1; //先留这么一个。因为后面估计会有不止一张要比对的database image.
     //接下来又要读写字符串了
     vector<string> image_dirs;
-    vector<string> image_dirs_hesaff;
+    vector<string> image_dirs_SIFT;
     vector<Mat> img_scene_mat;
     vector<int> image_descriptor_counts;
     //int len_dir = strlen(buf)+strlen(suffix_dir)+1;
     //char buf_dir[len_dir];
     snprintf(buf_dir, len_dir, "%s%s", buf, suffix_dir); buf_dir[len_dir-1]=0;
-    ifstream t_for_ransac;
-    ifstream t_single_hesaff;
-    t_for_ransac.open(buf_dir, ios::in);
-    t_for_ransac >> image_count;
+    ifstream ransac_image_count;
+    ransac_image_count >> image_count;
+    ransac_image_count.close();
+    ifstream dir_for_ransac;
+    ifstream dir_for_SIFT;
+    ifstream dir_for_kpts;
+    dir_for_ransac.open(buf_dir, ios::in);
     string image_file_string;
-    char suffix_hesaff[] = "hesaff.txt";
     int intra;
     char filename_short_02[_MAX_PATH];
     Mat img_scene_tmp;
 
     vector<Mat> descriptor_128_dump;
-    vector< vector<Point2f> > dataset_pts;
+    vector< vector<KeyPoint> > dataset_kpts;
 
     for(int i=0; i < image_count; ++i){
-        t_for_ransac >> image_file_string;
-        t_for_ransac >> intra;
+        dir_for_ransac >> image_file_string;
+        dir_for_ransac >> intra;
         image_descriptor_counts.push_back(intra);
 
         if(i==min_location){ //当确定是这张图片的时候
             memset(filename_short_02, 0, _MAX_PATH);
             image_dirs.push_back(image_file_string);
             img_scene_tmp = imread(image_file_string, 0);
+            cv::resize(img_scene_tmp, img_scene_tmp, Size(), 0.25, 0.25, INTER_CUBIC);
             img_scene_mat.push_back(img_scene_tmp);
             img_scene_tmp.release();
-            image_file_string.copy(filename_short_02,image_file_string.length()-3,0);//这里image_file_string.length()代表复制几个字符，0代表复制的位置
-            *(filename_short_02+image_file_string.length()-3)='\0';
-            int len_02 = strlen(filename_short_02)+strlen(suffix_hesaff)+1;
-            char buf_hesaff[len_02];
-            memset(buf_hesaff,len_02,0);
-            snprintf(buf_hesaff, len_02, "%s%s", filename_short_02, suffix_hesaff);
-            *(buf_hesaff+len_02)='\0';
-            //cout << buf_hesaff << endl;
-            string image_dirs_string = buf_hesaff;
+            image_file_string.copy(filename_short_02,image_file_string.length()-4,0);//这里image_file_string.length()代表复制几个字符，0代表复制的位置
+            filename_short_02[image_file_string.length()-4]= 0;
+            int len_SIFT = strlen(filename_short_02)+strlen(suffix_SIFT)+1;
+            char buf_SIFT[len_SIFT];
+            memset(buf_SIFT,len_SIFT,0);
+            snprintf(buf_SIFT, len_SIFT, "%s%s", filename_short_02, suffix_SIFT);buf_SIFT[len_SIFT-1] = 0;
+            string image_SIFT_string = buf_SIFT;
 
-            cout << "Target: " << image_dirs_string << endl;
-            image_dirs_hesaff.push_back(image_dirs_string);
+            int len_kpts = strlen(filename_short_02)+strlen(suffix_kpts)+1;
+            char buf_kpts[len_kpts];
+            memset(buf_kpts,len_kpts,0);
+            snprintf(buf_kpts, len_kpts, "%s%s", filename_short_02, suffix_kpts);buf_kpts[len_kpts-1] = 0;
+            string image_kpts_string = buf_kpts;
+
+            cout << "Target: " << image_SIFT_string << endl;
+            image_dirs_SIFT.push_back(image_SIFT_string);
             vector<Mat> this_image_descriptor_dump;
             vector<KeyPoint> scene_image_KeyPoint;
-            t_single_hesaff.open(buf_hesaff, ios::in);
+            dir_for_SIFT.open(buf_SIFT, ios::in);
+            dir_for_kpts.open(buf_kpts, ios::in);
             int little_marker = 0;
-            t_single_hesaff >> little_marker;
-            if(little_marker!=128){
-                return -3;
-            }
-            t_single_hesaff >> little_marker;
+            dir_for_kpts >> little_marker;
+            dir_for_SIFT >> little_marker;
             int descriptor_count_single = little_marker;
             for(int j=0; j < descriptor_count_single; ++j){
                 Mat descriptor_single_row = Mat::zeros(1,128,CV_32S);
                 KeyPoint KeyPoint_local;
-                t_single_hesaff >> little_marker;
-                KeyPoint_local.pt.x = float(little_marker);
-                t_single_hesaff >> little_marker;
-                KeyPoint_local.pt.y = float(little_marker);
-                KeyPoint_local.size = 10;
-                t_single_hesaff >> little_marker;t_single_hesaff >> little_marker;t_single_hesaff >> little_marker; // a b c
                 for(int j_02=0; j_02 < 128; ++j_02){
-                    t_single_hesaff >> little_marker;
+                    dir_for_SIFT >> little_marker;
                     descriptor_single_row.at<int>(0,j_02) = little_marker;
                 }
-
+                {
+                    dir_for_kpts >> KeyPoint_local.pt.x;
+                    dir_for_kpts >> KeyPoint_local.pt.y;
+                    dir_for_kpts >> KeyPoint_local.size;
+                    dir_for_kpts >> KeyPoint_local.angle;
+                    dir_for_kpts >> KeyPoint_local.response;
+                    dir_for_kpts >> KeyPoint_local.octave;
+                    dir_for_kpts >> KeyPoint_local.class_id;
+                }
                 scene_image_KeyPoint.push_back(KeyPoint_local);
                 Mat intra_mat;
                 //
@@ -1128,9 +1089,8 @@ int main()
             FlannBasedMatcher matcher;
             vector< DMatch > matches;
             Mat GGG;
-            this_image_descriptor_dump[0].copyTo(GGG);
+            this_image_descriptor_dump[0].convertTo(GGG,CV_32F);
             new_descriptor.convertTo(new_descriptor,CV_32F);
-            GGG.convertTo(GGG,CV_32F);
             matcher.match( new_descriptor, GGG, matches );
             double max_dist = 0; double min_dist = 1000;
 
@@ -1146,7 +1106,7 @@ int main()
             std::vector< DMatch > good_matches;
 
             for( int i = 0; i < new_descriptor.rows; i++ ){
-                if( matches[i].distance < 3*min_dist ){
+                if( matches[i].distance < 1.5*min_dist ){
                     good_matches.push_back( matches[i]);
                 }
             }
@@ -1161,7 +1121,7 @@ int main()
 
 
 
-            drawMatches( img_object_src, object_image_KeyPoint, img_scene_mat[0], scene_image_KeyPoint,
+            drawMatches( img_object, object_image_KeyPoint, img_scene_mat[0], scene_image_KeyPoint,
                         good_matches, img_matches, Scalar::all(-1), Scalar::all(-1),
                         vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
@@ -1200,7 +1160,7 @@ int main()
 
         image_file_string.clear();
     }
-
+    dir_for_ransac.close();
 
 
 

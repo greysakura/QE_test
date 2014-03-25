@@ -108,46 +108,6 @@
 //    }
 //
 //int main(){
-////    vector<string> image_dirs;
-////    vector<int> image_descriptor_counts;
-////    int image_count = 0;
-////    //int len_dir = strlen(buf)+strlen(suffix_dir)+1;
-////    //char buf_dir[len_dir];
-////    //snprintf(buf_dir, len_dir, "%s%s", buf, suffix_dir); buf_dir[len_dir-1]=0;
-////    ifstream t_for_ransac;
-////    t_for_ransac.open("C:/Cassandra/here/image_index.txt", ios::in);
-////    t_for_ransac >> image_count;
-////    int intra;
-////    string df;
-////    char suffix_hesaff[] = "hesaff";
-//////    for(int i=0; i < image_count; ++i){
-////    t_for_ransac >> df;
-////    cout << df << endl;
-////    image_dirs.push_back(df);
-////    t_for_ransac >> intra;
-////    image_descriptor_counts.push_back(intra);
-////    cout << intra << endl;
-////
-////    char p[_MAX_PATH];
-////    df.copy(p,(df.length()-3),0); //这里5，代表复制几个字符，0代表复制的位置
-////    *(p+df.length()-3)='\0';
-////    //int GG = df.length();
-////    //df.copy(p,df.length(),0);
-//////    memcpy(p,suffix_hesaff,strlen(p));
-////    int len = strlen(p)+strlen(suffix_hesaff)+1;
-////    char buf_go[len];
-////    memset(buf_go,len,0);
-////    snprintf(buf_go, len, "%s%s", p, suffix_hesaff); //buf_go[len-1]=0;//
-////    *(p+len)='\0'; //要手动加上结束符
-//////    suffix_hesaff.copy(p, suffix_hesaff.length(), 1);
-//////    *(p+df.length()+suffix_hesaff.length()-3)='\0';
-////    cout << buf_go << endl;
-////    cout << df.length() << endl;
-//////    cout << suffix_hesaff.length() << endl;
-//////    }
-//////    Mat src_image = imread(p,0);
-//////    namedWindow("image",CV_WINDOW_AUTOSIZE);
-//////    imshow("image",src_image);
 //
 //    Mat img_scene = imread("C:/Cassandra/here/all_souls_000014.jpg",CV_LOAD_IMAGE_GRAYSCALE);
 //    Mat img_object = imread("C:/Cassandra/2313.jpg",CV_LOAD_IMAGE_GRAYSCALE);
@@ -165,10 +125,10 @@
 ////        cout << "x: " << GGG.pt.x << " y: " << GGG.pt.y<< endl;
 ////    }
 ////-- Step 2: Calculate descriptors (feature vectors)
-//    SurfDescriptorExtractor extractor;
+//    SiftDescriptorExtractor extractor;
+////    SurfDescriptorExtractor extractor;
 //
 //    Mat descriptors_object, descriptors_scene;
-//
 //    extractor.compute( img_object, keypoints_object, descriptors_object );
 //    extractor.compute( img_scene, keypoints_scene, descriptors_scene );
 //    //-- Step 3: Matching descriptor vectors using FLANN matcher
@@ -198,7 +158,7 @@
 //    std::vector< DMatch > good_matches;
 //
 //    for( int i = 0; i < descriptors_object.rows; i++ ){
-//        if( matches[i].distance < 3*min_dist ){
+//        if( matches[i].distance < 3.5*min_dist ){
 //            good_matches.push_back( matches[i]);
 //        }
 //    }

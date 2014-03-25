@@ -549,3 +549,92 @@
 
 1395055748 source:c:\cassandra\workshop\codeshop\hessiantest\playground02.cpp
 
+1332187352 source:c:\cassandra\workshop\codeshop\qe_test\affine.cpp
+	"affine.h"
+
+1386836361 c:\cassandra\workshop\codeshop\qe_test\affine.h
+	"opencv2\opencv.hpp"
+	<stdio.h>
+	<iostream>
+	<opencv2/imgproc/imgproc.hpp>
+	<opencv2/core/core.hpp>
+	<opencv2/highgui/highgui.hpp>
+	<opencv2/legacy/legacy.hpp>
+	<opencv2/objdetect/objdetect.hpp>
+	<opencv2/nonfree/nonfree.hpp>
+	<opencv2/nonfree/features2d.hpp>
+	<opencv2/features2d/features2d.hpp>
+	<vector>
+	<cv.h>
+	"helpers.h"
+
+1332187352 c:\cassandra\workshop\codeshop\qe_test\helpers.h
+
+1391752680 source:c:\cassandra\workshop\codeshop\qe_test\helpers.cpp
+	<cmath>
+	<iostream>
+	<cv.h>
+	<sys/times.h>
+	<time.h>
+	<sys/time.h>
+	<unistd.h>
+	<stdio.h>
+
+1394528238 source:c:\cassandra\workshop\codeshop\qe_test\pyramid.cpp
+	<vector>
+	<string.h>
+	<algorithm>
+	"pyramid.h"
+	"helpers.h"
+	<iostream>
+
+1386839254 c:\cassandra\workshop\codeshop\qe_test\pyramid.h
+	<cv.h>
+	<highgui.h>
+
+1332187352 source:c:\cassandra\workshop\codeshop\qe_test\siftdesc.cpp
+	<vector>
+	"siftdesc.h"
+
+1391759088 c:\cassandra\workshop\codeshop\qe_test\siftdesc.h
+	<vector>
+	<cv.h>
+	"helpers.h"
+
+1395663435 source:c:\cassandra\workshop\codeshop\qe_test\kmeanops.cpp
+	<iostream>
+	<fstream>
+	"opencv2\opencv.hpp"
+	<stdio.h>
+	<string>
+	<vector>
+	<math.h>
+	<map>
+	<cmath>
+	<stdlib.h>
+	<cv.h>
+	<highgui.h>
+	<cxcore.h>
+	<opencv2/imgproc/imgproc.hpp>
+	<opencv2/calib3d/calib3d.hpp>
+	<opencv2/core/core.hpp>
+	<opencv2/highgui/highgui.hpp>
+	<opencv2/legacy/legacy.hpp>
+	<opencv2/objdetect/objdetect.hpp>
+	<opencv2/nonfree/nonfree.hpp>
+	<opencv2/nonfree/features2d.hpp>
+	<opencv2/features2d/features2d.hpp>
+	<list>
+	"pyramid.h"
+	"helpers.h"
+	"affine.h"
+	"siftdesc.h"
+	"direct.h"
+	"io.h"
+
+1395386604 source:c:\cassandra\workshop\codeshop\qe_test\playground.cpp
+
+1395637145 source:c:\cassandra\workshop\codeshop\qe_test\filefile.cpp
+
+1395637287 source:c:\cassandra\workshop\codeshop\qe_test\oldversion.cpp
+
