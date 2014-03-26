@@ -970,15 +970,8 @@ int main()
     Mat new_des_cluster;
     Mat object_cluster;
     find_cluster_center(new_descriptor, centers, new_des_cluster,object_cluster);
-//    cout << new_des_cluster << endl;
-//    cout << "new_des_cluster.rows: " << new_des_cluster.rows << " new_des_cluster.cols: " << new_des_cluster.cols << endl;
-//    tf_idf_out << "new_des_cluster.rows: " << new_des_cluster.rows << " new_des_cluster.cols: " << new_des_cluster.cols << endl;
-//    cout << new_des_cluster << endl;
     t_extra_output << new_des_cluster << endl;
-//    cout << "object_cluster.rows: " << object_cluster.rows << " object_cluster.cols: " << object_cluster.cols << endl;
     t_extra_output << "object_cluster.rows: " << object_cluster.rows << " object_cluster.cols: " << object_cluster.cols << endl;
-    //cout << object_cluster << endl;
-//    tf_idf_out << object_cluster << endl;
     t_extra_output.close();
 
 //    现在开始，VW的距离比较过程
@@ -1047,6 +1040,7 @@ int main()
         }
         image_file_string.clear();
     }
+    dir_for_ransac.close();
     //解决方法。再sort一次就好了。
     Mat Key_img_ranking = BoW_dis_ranking.colRange(0,top_ranking_limit);
     cout << Key_img_ranking << endl;
@@ -1078,7 +1072,11 @@ int main()
     }
 
     //到这里为止都没问题了
-
+    vector<Mat> scene_image_descriptor;
+    vector< vector<KeyPoint> > scene_image_KeyPoint;
+    vector< vector< DMatch > > matches;
+    vector< vector< DMatch > > good_matches;
+    vector<Mat> img_matches_draw;
     for(int i=0; i< top_ranking_limit; ++i){
             //当确定是这张图片的时候
             memset(filename_short_02, 0, _MAX_PATH);
@@ -1103,8 +1101,8 @@ int main()
 
             cout << "Target: " << image_SIFT_string << endl;
             image_dirs_SIFT.push_back(image_SIFT_string);
-            vector<Mat> this_image_descriptor_dump;
-            vector<KeyPoint> scene_image_KeyPoint;
+            vector<Mat> scene_image_descriptor_tmp;
+            vector<KeyPoint> scene_image_KeyPoint_tmp;
             dir_for_SIFT.open(buf_SIFT, ios::in);
             dir_for_kpts.open(buf_kpts, ios::in);
             int little_marker = 0;
@@ -1127,67 +1125,69 @@ int main()
                     dir_for_kpts >> KeyPoint_local.octave;
                     dir_for_kpts >> KeyPoint_local.class_id;
                 }
-                scene_image_KeyPoint.push_back(KeyPoint_local);
+                scene_image_KeyPoint_tmp.push_back(KeyPoint_local);
                 Mat intra_mat;
                 //
                 if(j==0){
-                    this_image_descriptor_dump.push_back(descriptor_single_row);
+                    scene_image_descriptor_tmp.push_back(descriptor_single_row);
                 }else{
                     //中间？miao是拼接的结果
-                    vconcat(this_image_descriptor_dump[0], descriptor_single_row, intra_mat);
-                    this_image_descriptor_dump.pop_back();
-                    this_image_descriptor_dump.push_back(intra_mat);
+                    vconcat(scene_image_descriptor_tmp[0], descriptor_single_row, intra_mat);
+                    scene_image_descriptor_tmp.pop_back();
+                    scene_image_descriptor_tmp.push_back(intra_mat);
                     intra_mat.release();
                 }
             }
+            dir_for_SIFT.close();
+            dir_for_kpts.close();
+
+            scene_image_KeyPoint.push_back(scene_image_KeyPoint_tmp);
+            scene_image_descriptor.push_back(scene_image_descriptor_tmp[0]);
+            scene_image_descriptor_tmp.pop_back();
             FlannBasedMatcher matcher;
-            vector< DMatch > matches;
+            vector< DMatch > matches_tmp;
+            vector< DMatch > good_matches_tmp;
             Mat GGG;
-            this_image_descriptor_dump[0].convertTo(GGG,CV_32F);
+            scene_image_descriptor[i].convertTo(GGG,CV_32F);
             new_descriptor.convertTo(new_descriptor,CV_32F);
-            matcher.match( new_descriptor, GGG, matches );
+            matcher.match( new_descriptor, GGG, matches_tmp );
             double max_dist = 0; double min_dist = 1000;
 
             //-- Quick calculation of max and min distances between keypoints
-            for( int i = 0; i < new_descriptor.rows; i++ ){
-                    double dist = matches[i].distance;
+            for( int j = 0; j < new_descriptor.rows; j++ ){
+                    double dist = matches_tmp[j].distance;
                     if( dist < min_dist ) min_dist = dist;
                     if( dist > max_dist ) max_dist = dist;
             }
             cout << "Max dist : " << max_dist << endl;
             cout << "Min dist : " << min_dist << endl;
               //-- Draw only "good" matches (i.e. whose distance is less than 3*min_dist )
-            std::vector< DMatch > good_matches;
 
-            for( int i = 0; i < new_descriptor.rows; i++ ){
-                if( matches[i].distance < 1.5*min_dist ){
-                    good_matches.push_back( matches[i]);
+
+            for( int j = 0; j < new_descriptor.rows; j++ ){
+                if( matches_tmp[j].distance < 1.5*min_dist ){
+                    good_matches_tmp.push_back( matches_tmp[j]);
                 }
             }
+            matches.push_back(matches_tmp);
+            good_matches.push_back(good_matches_tmp);
+
 //////////////////////////////这后面是不确定的部分
             Mat img_matches;
-//            drawMatches( img_object, keypoints_object, dst_image, keypoints_scene,
-//                       good_matches, img_matches, Scalar::all(-1), Scalar::all(-1),
-//                       vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
-            // 新问题： 我们要生成keypoints_object
-
-
-
-
-            drawMatches( img_object, object_image_KeyPoint, img_scene_mat[i], scene_image_KeyPoint,
-                        good_matches, img_matches, Scalar::all(-1), Scalar::all(-1),
+            drawMatches( img_object, object_image_KeyPoint, img_scene_mat[i], scene_image_KeyPoint[i],
+                        good_matches_tmp, img_matches, Scalar::all(-1), Scalar::all(-1),
                         vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
          //-- Localize the object
             std::vector<Point2f> obj;
             std::vector<Point2f> scene;
 
-            for( int i = 0; i < good_matches.size(); i++ )
+            for(int j=0; j < good_matches_tmp.size(); j++)
             {
             //-- Get the keypoints from the good matches
-                obj.push_back( object_image_KeyPoint[ good_matches[i].queryIdx ].pt );
-                scene.push_back( scene_image_KeyPoint[ good_matches[i].trainIdx ].pt );
+                obj.push_back( object_image_KeyPoint[ good_matches_tmp[j].queryIdx ].pt );
+                scene.push_back( scene_image_KeyPoint[i][ good_matches_tmp[j].trainIdx ].pt );
             }
 
             Mat H = findHomography( obj, scene, CV_RANSAC );//
@@ -1206,17 +1206,23 @@ int main()
             line( img_matches, scene_corners[2] + Point2f( img_object.cols, 0), scene_corners[3] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
             line( img_matches, scene_corners[3] + Point2f( img_object.cols, 0), scene_corners[0] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
 
+
+            img_matches_draw.push_back(img_matches);
           //-- Show detected matches
-            imshow( "Good Matches & Object detection", img_matches );
+//            int len_for_show = strlen(new_coming_file)+strlen(image_dirs[i])+1;
+//            char buf_for_show[len_for_show];
+//            memset(buf_for_show,len_for_show,0);
+//            snprintf(buf_for_show, len_for_show, "%s%s", new_coming_file, image_dirs[i]);buf_for_show[len_for_show-1] = 0;
+
+
+
+
+            imshow( image_dirs[i], img_matches_draw[i] );
             waitKey(0);
+            destroyWindow(image_dirs[i]);
 
 
     }
-    image_file_string.clear();
-    dir_for_ransac.close();
-
-
-
     return 0;
 }
 
