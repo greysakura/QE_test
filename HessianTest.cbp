@@ -117,6 +117,7 @@
 		<Unit filename="pyramid.h" />
 		<Unit filename="siftdesc.cpp" />
 		<Unit filename="siftdesc.h" />
+		<Unit filename="testground02.cpp" />
 		<Extensions>
 			<code_completion />
 			<envvars />

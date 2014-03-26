@@ -354,6 +354,19 @@ void write_SIFT_descriptor(Mat &input_SIFT_mat, ostream &out){
         out << endl;
     }
 }
+bool locate_key_image(int i, int key_image_num, Mat &Ranking_Mat){
+    // Note, that the ranking mat should have acsending sequence.
+    if( (Ranking_Mat.type()!=CV_32S) || (Ranking_Mat.rows!=1)){
+        cout << "locate_key_image error!!!" << endl;
+        return -4;
+    }
+    bool exsit = false;
+    for(int j=0; j< key_image_num; ++j){
+        if(Ranking_Mat.at<int>(0,j)==i){
+        exsit = true;}
+    }
+    return exsit;
+}
 
 class CBrowseDir
 {
@@ -513,10 +526,7 @@ bool CBrowseDir::BrowseDir(const char *dir,const char *filespec)
                     char buf_kpts[len_kpts];
                     memset(buf_kpts,0,len_kpts);
                     snprintf(buf_kpts, len_kpts, "%s%s", filename_short, suffix_kpts);buf_kpts[len_kpts-1] = 0;//
-                    //
-                    if(count_lalala < 40){
-                        int miaommm = 0;
-                    }
+
                     ofstream out_index;
                     ofstream out_SIFT;
                     ofstream out_kpts;
@@ -772,7 +782,7 @@ int main()
     //Kmeans
     cv::kmeans(Descriptor_company[0], num_of_cluster, bestLabels,
             TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 100, 0.1),
-            30, KMEANS_RANDOM_CENTERS, centers);
+            10, KMEANS_RANDOM_CENTERS, centers);
 
     //小插曲。这里我们来统计一下每一幅图片里各个词汇的个数。那么我们先做一个mat
     vector<Mat> count_the_des;
@@ -895,7 +905,7 @@ int main()
 /////////下面是对新图片进行descriptor提取的部分
 //    Mat tmptmp;
     //接下来我们读一张新的图片？
-    char new_coming_file[] = "C:/Cassandra/all_souls_000027.jpg";
+    char new_coming_file[] = "C:/Cassandra/orz.jpg";
     Mat img_object = imread(new_coming_file,0);// read it into
     //Mat img_object;
     //img_object_src.convertTo(img_object, CV_32F);
@@ -907,7 +917,7 @@ int main()
 	    cout << "Unable to open image."<<endl;
 		return -1;
 	}
-	imwrite("C:/Cassandra/all_souls_000027_grey.jpg",img_object);
+	imwrite("C:/Cassandra/orz_grey.jpg",img_object);
 
     int minHessian = 400;
     SurfFeatureDetector detector(minHessian);
@@ -953,19 +963,19 @@ int main()
     t_extra_output.open("C:/Cassandra/here/new_image_keys.txt",ios::out|ios::trunc);
     //detector01.exportKeypoints_Extra(t_extra_output);
     //cout << "new_descriptor: "<< new_descriptor << endl;
-    cout << "new_descriptor.rows: " << new_descriptor.rows << " new_descriptor.cols: " << new_descriptor.cols << endl;
-    cout << "centers.rows: " << centers.rows << " centers.cols: " << centers.cols << endl;
+//    cout << "new_descriptor.rows: " << new_descriptor.rows << " new_descriptor.cols: " << new_descriptor.cols << endl;
+//    cout << "centers.rows: " << centers.rows << " centers.cols: " << centers.cols << endl;
     //从这里开始，每个descriptor去跟所有的cluster center去计算距离
     //还是写个函数吧
     Mat new_des_cluster;
     Mat object_cluster;
     find_cluster_center(new_descriptor, centers, new_des_cluster,object_cluster);
 //    cout << new_des_cluster << endl;
-    cout << "new_des_cluster.rows: " << new_des_cluster.rows << " new_des_cluster.cols: " << new_des_cluster.cols << endl;
+//    cout << "new_des_cluster.rows: " << new_des_cluster.rows << " new_des_cluster.cols: " << new_des_cluster.cols << endl;
 //    tf_idf_out << "new_des_cluster.rows: " << new_des_cluster.rows << " new_des_cluster.cols: " << new_des_cluster.cols << endl;
 //    cout << new_des_cluster << endl;
     t_extra_output << new_des_cluster << endl;
-    cout << "object_cluster.rows: " << object_cluster.rows << " object_cluster.cols: " << object_cluster.cols << endl;
+//    cout << "object_cluster.rows: " << object_cluster.rows << " object_cluster.cols: " << object_cluster.cols << endl;
     t_extra_output << "object_cluster.rows: " << object_cluster.rows << " object_cluster.cols: " << object_cluster.cols << endl;
     //cout << object_cluster << endl;
 //    tf_idf_out << object_cluster << endl;
@@ -989,15 +999,20 @@ int main()
             min_store = VW_distance.at<double>(0,i);
         }
     }
-    cout << VW_distance << endl;
+//    cout << VW_distance << endl;
     cout << "min value: " << min_store << endl;
     cout << "min location: " << min_location << endl;
 
 
-    ////3/24日到这里
+    ////3/25日改动
+    Mat BoW_dis_ranking;
+    int top_ranking_limit = 5;// database ranking limit. We compare these images to the query image.
+    cv::sortIdx(VW_distance, BoW_dis_ranking, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
+    cout << "BoW Ranking: min to max." << endl;
+    for(int i=0; i<top_ranking_limit; ++i){
+        cout << "Top "<< i << ": " << BoW_dis_ranking.at<int>(0,i) << endl;
+    }
 
-
-    int key_image_count = 1; //先留这么一个。因为后面估计会有不止一张要比对的database image.
     //接下来又要读写字符串了
     vector<string> image_dirs;
     vector<string> image_dirs_SIFT;
@@ -1024,17 +1039,56 @@ int main()
     for(int i=0; i < image_count; ++i){
         dir_for_ransac >> image_file_string;
         dir_for_ransac >> intra;
-        image_descriptor_counts.push_back(intra);
 
-        if(i==min_location){ //当确定是这张图片的时候
-            memset(filename_short_02, 0, _MAX_PATH);
+        //拆开写成两个循环比较好
+        if(locate_key_image(i, top_ranking_limit, BoW_dis_ranking)==true){
             image_dirs.push_back(image_file_string);
-            img_scene_tmp = imread(image_file_string, 0);
+            image_descriptor_counts.push_back(intra);
+        }
+        image_file_string.clear();
+    }
+    //解决方法。再sort一次就好了。
+    Mat Key_img_ranking = BoW_dis_ranking.colRange(0,top_ranking_limit);
+    cout << Key_img_ranking << endl;
+    cv::sortIdx(Key_img_ranking,Key_img_ranking, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
+    cout << Key_img_ranking << endl;
+    for(int i=0; i<top_ranking_limit;++i){
+        cout << image_dirs[i] << endl;
+    }
+    vector<string> image_dirs_tmp;
+    vector<int> image_descriptor_counts_tmp;
+    for(int i=0; i < top_ranking_limit; ++i){
+        string dir_tmp = image_dirs[Key_img_ranking.at<int>(0,i)];
+        image_dirs_tmp.push_back(dir_tmp);
+        image_descriptor_counts_tmp.push_back(image_descriptor_counts[Key_img_ranking.at<int>(0,i)]);
+    }
+    vector <int>().swap(image_descriptor_counts);
+    vector <string>().swap(image_dirs);
+    for(int i=0; i< top_ranking_limit; ++i){
+        image_dirs.push_back(image_dirs_tmp[i]);
+        image_descriptor_counts.push_back(image_descriptor_counts_tmp[i]);
+    }
+    vector <int>().swap(image_descriptor_counts_tmp);
+    vector <string>().swap(image_dirs_tmp);
+
+    cout << endl;
+    for(int i=0; i<top_ranking_limit;++i){
+        cout << image_dirs[i] << " " << image_descriptor_counts[i] << endl;
+
+    }
+
+    //到这里为止都没问题了
+
+    for(int i=0; i< top_ranking_limit; ++i){
+            //当确定是这张图片的时候
+            memset(filename_short_02, 0, _MAX_PATH);
+            //image_dirs.push_back(image_file_string);
+            img_scene_tmp = imread(image_dirs[i], 0);
             cv::resize(img_scene_tmp, img_scene_tmp, Size(), 0.25, 0.25, INTER_CUBIC);
             img_scene_mat.push_back(img_scene_tmp);
             img_scene_tmp.release();
-            image_file_string.copy(filename_short_02,image_file_string.length()-4,0);//这里image_file_string.length()代表复制几个字符，0代表复制的位置
-            filename_short_02[image_file_string.length()-4]= 0;
+            image_dirs[i].copy(filename_short_02,image_dirs[i].length()-4,0);//这里image_file_string.length()代表复制几个字符，0代表复制的位置
+            filename_short_02[image_dirs[i].length()-4]= 0;
             int len_SIFT = strlen(filename_short_02)+strlen(suffix_SIFT)+1;
             char buf_SIFT[len_SIFT];
             memset(buf_SIFT,len_SIFT,0);
@@ -1121,11 +1175,11 @@ int main()
 
 
 
-            drawMatches( img_object, object_image_KeyPoint, img_scene_mat[0], scene_image_KeyPoint,
+            drawMatches( img_object, object_image_KeyPoint, img_scene_mat[i], scene_image_KeyPoint,
                         good_matches, img_matches, Scalar::all(-1), Scalar::all(-1),
                         vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
-    /*      //-- Localize the object
+         //-- Localize the object
             std::vector<Point2f> obj;
             std::vector<Point2f> scene;
 
@@ -1143,7 +1197,7 @@ int main()
             obj_corners[0] = cvPoint(0,0); obj_corners[1] = cvPoint( img_object.cols, 0 );
             obj_corners[2] = cvPoint( img_object.cols, img_object.rows ); obj_corners[3] = cvPoint( 0, img_object.rows );
             std::vector<Point2f> scene_corners(4);
-
+          //--
             perspectiveTransform( obj_corners, scene_corners, H);
 
           //-- Draw lines between the corners (the mapped object in the scene - image_2 )
@@ -1151,15 +1205,14 @@ int main()
             line( img_matches, scene_corners[1] + Point2f( img_object.cols, 0), scene_corners[2] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
             line( img_matches, scene_corners[2] + Point2f( img_object.cols, 0), scene_corners[3] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
             line( img_matches, scene_corners[3] + Point2f( img_object.cols, 0), scene_corners[0] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
-*/
+
           //-- Show detected matches
             imshow( "Good Matches & Object detection", img_matches );
             waitKey(0);
-        }
 
 
-        image_file_string.clear();
     }
+    image_file_string.clear();
     dir_for_ransac.close();
 
 

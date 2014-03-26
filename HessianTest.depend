@@ -601,7 +601,7 @@
 	<cv.h>
 	"helpers.h"
 
-1395663435 source:c:\cassandra\workshop\codeshop\qe_test\kmeanops.cpp
+1395818342 source:c:\cassandra\workshop\codeshop\qe_test\kmeanops.cpp
 	<iostream>
 	<fstream>
 	"opencv2\opencv.hpp"
@@ -632,9 +632,11 @@
 	"direct.h"
 	"io.h"
 
-1395386604 source:c:\cassandra\workshop\codeshop\qe_test\playground.cpp
+1395724564 source:c:\cassandra\workshop\codeshop\qe_test\playground.cpp
 
 1395637145 source:c:\cassandra\workshop\codeshop\qe_test\filefile.cpp
 
 1395637287 source:c:\cassandra\workshop\codeshop\qe_test\oldversion.cpp
+
+1395724894 source:c:\cassandra\workshop\codeshop\qe_test\testground02.cpp
 
