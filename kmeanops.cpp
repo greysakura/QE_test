@@ -354,14 +354,33 @@ void write_SIFT_descriptor(Mat &input_SIFT_mat, ostream &out){
         out << endl;
     }
 }
-bool locate_key_image(int i, int key_image_num, Mat &Ranking_Mat){
+
+Mat VW_average_operation(vector<Mat> VW_storage, int cluster_number){
+    Mat intra = Mat::zeros(1,cluster_number,CV_64F);
+    for(size_t i=0; i< VW_storage.size(); ++i){
+        if(VW_storage[i].rows!=1 || VW_storage[i].cols!= cluster_number || VW_storage[i].type()!=CV_32S){
+            cout << "ERROR!!!"<< endl;
+        }
+
+        for(int j=0; j< cluster_number; ++j){
+            intra.at<double>(0,j) += double(VW_storage[i].at<int>(0,j))/double(VW_storage.size());
+        }
+    }
+    return intra;
+}
+
+bool locate_key_image(int i, int key_image_start, int key_image_num, Mat &Ranking_Mat){
     // Note, that the ranking mat should have acsending sequence.
     if( (Ranking_Mat.type()!=CV_32S) || (Ranking_Mat.rows!=1)){
-        cout << "locate_key_image error!!!" << endl;
+        cout << "error! locate_key_image error!!!" << endl;
         return -4;
     }
+    if(key_image_start >= key_image_num){
+        cout << "error! key_image_start should be smaller than key_image_num." << endl;
+        return -5;
+    }
     bool exsit = false;
-    for(int j=0; j< key_image_num; ++j){
+    for(int j=key_image_start; j< (key_image_start+key_image_num); ++j){
         if(Ranking_Mat.at<int>(0,j)==i){
         exsit = true;}
     }
@@ -816,7 +835,7 @@ int main()
     tf_idf_out << "Step1: " << endl;
     tf_idf_out << image_count << " " << des_count_all << " " << num_of_cluster << endl;
     for(int i=0; i < image_count; ++i){
-        des_max_frequence.at<int>(0,i) = 0;//其实可以不写这一句
+        //des_max_frequence.at<int>(0,i) = 0;//其实可以不写这一句
         for(int j=0; j < num_of_cluster; ++j){
             tf_idf_out << count_the_des[i].at<int>(0,j) << " ";
             if(count_the_des[i].at<int>(0,j) > des_max_frequence.at<int>(0,i)){
@@ -961,10 +980,6 @@ int main()
     //
     ofstream t_extra_output;
     t_extra_output.open("C:/Cassandra/here/new_image_keys.txt",ios::out|ios::trunc);
-    //detector01.exportKeypoints_Extra(t_extra_output);
-    //cout << "new_descriptor: "<< new_descriptor << endl;
-//    cout << "new_descriptor.rows: " << new_descriptor.rows << " new_descriptor.cols: " << new_descriptor.cols << endl;
-//    cout << "centers.rows: " << centers.rows << " centers.cols: " << centers.cols << endl;
     //从这里开始，每个descriptor去跟所有的cluster center去计算距离
     //还是写个函数吧
     Mat new_des_cluster;
@@ -1026,35 +1041,36 @@ int main()
     char filename_short_02[_MAX_PATH];
     Mat img_scene_tmp;
 
-    vector<Mat> descriptor_128_dump;
-    vector< vector<KeyPoint> > dataset_kpts;
-
     for(int i=0; i < image_count; ++i){
         dir_for_ransac >> image_file_string;
         dir_for_ransac >> intra;
 
         //拆开写成两个循环比较好
-        if(locate_key_image(i, top_ranking_limit, BoW_dis_ranking)==true){
+        if(locate_key_image(i, 0, top_ranking_limit, BoW_dis_ranking)==true){
             image_dirs.push_back(image_file_string);
             image_descriptor_counts.push_back(intra);
         }
         image_file_string.clear();
     }
     dir_for_ransac.close();
+
     //解决方法。再sort一次就好了。
-    Mat Key_img_ranking = BoW_dis_ranking.colRange(0,top_ranking_limit);
-    cout << Key_img_ranking << endl;
-    cv::sortIdx(Key_img_ranking,Key_img_ranking, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
-    cout << Key_img_ranking << endl;
+//    BoW_dis_ranking
+    //sort_and_take
+    //Mat Key_img_ranking_origin_first_query = BoW_dis_ranking.colRange(0,top_ranking_limit);
+    Mat Key_img_ranking_first_query;
+    //cout << Key_img_ranking_origin_first_query << endl;
+    cv::sortIdx(BoW_dis_ranking.colRange(0,top_ranking_limit),Key_img_ranking_first_query, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
+    cout << Key_img_ranking_first_query << endl;
     for(int i=0; i<top_ranking_limit;++i){
         cout << image_dirs[i] << endl;
     }
     vector<string> image_dirs_tmp;
     vector<int> image_descriptor_counts_tmp;
     for(int i=0; i < top_ranking_limit; ++i){
-        string dir_tmp = image_dirs[Key_img_ranking.at<int>(0,i)];
+        string dir_tmp = image_dirs[Key_img_ranking_first_query.at<int>(0,i)];
         image_dirs_tmp.push_back(dir_tmp);
-        image_descriptor_counts_tmp.push_back(image_descriptor_counts[Key_img_ranking.at<int>(0,i)]);
+        image_descriptor_counts_tmp.push_back(image_descriptor_counts[Key_img_ranking_first_query.at<int>(0,i)]);
     }
     vector <int>().swap(image_descriptor_counts);
     vector <string>().swap(image_dirs);
@@ -1072,11 +1088,17 @@ int main()
     }
 
     //到这里为止都没问题了
-    vector<Mat> scene_image_descriptor;
-    vector< vector<KeyPoint> > scene_image_KeyPoint;
-    vector< vector< DMatch > > matches;
-    vector< vector< DMatch > > good_matches;
-    vector<Mat> img_matches_draw;
+    vector<Mat> scene_image_descriptor_first_query;
+    vector< vector<KeyPoint> > scene_image_KeyPoint_first_query;
+    vector< vector< DMatch > > matches_first_query;
+    vector< vector< DMatch > > good_matches_first_query;
+    vector<Mat> img_matches_draw_first_query;
+    vector< vector<Point2f> > obj_pts_first_query;
+    vector< vector<Point2f> > scene_pts_first_query;
+    vector<Mat> homograph_for_matches_first_query;
+    vector< vector<Point2f> > obj_corners_first_query;
+    vector< vector<Point2f> > scene_corners_first_query;
+
     for(int i=0; i< top_ranking_limit; ++i){
             //当确定是这张图片的时候
             memset(filename_short_02, 0, _MAX_PATH);
@@ -1141,16 +1163,16 @@ int main()
             dir_for_SIFT.close();
             dir_for_kpts.close();
 
-            scene_image_KeyPoint.push_back(scene_image_KeyPoint_tmp);
-            scene_image_descriptor.push_back(scene_image_descriptor_tmp[0]);
+            scene_image_KeyPoint_first_query.push_back(scene_image_KeyPoint_tmp);
+            scene_image_descriptor_first_query.push_back(scene_image_descriptor_tmp[0]);
             scene_image_descriptor_tmp.pop_back();
             FlannBasedMatcher matcher;
             vector< DMatch > matches_tmp;
             vector< DMatch > good_matches_tmp;
-            Mat GGG;
-            scene_image_descriptor[i].convertTo(GGG,CV_32F);
+            Mat descriptor_intra;
+            scene_image_descriptor_first_query[i].convertTo(descriptor_intra,CV_32F);
             new_descriptor.convertTo(new_descriptor,CV_32F);
-            matcher.match( new_descriptor, GGG, matches_tmp );
+            matcher.match( new_descriptor, descriptor_intra, matches_tmp );
             double max_dist = 0; double min_dist = 1000;
 
             //-- Quick calculation of max and min distances between keypoints
@@ -1169,36 +1191,43 @@ int main()
                     good_matches_tmp.push_back( matches_tmp[j]);
                 }
             }
-            matches.push_back(matches_tmp);
-            good_matches.push_back(good_matches_tmp);
+            matches_first_query.push_back(matches_tmp);
+            good_matches_first_query.push_back(good_matches_tmp);
 
 //////////////////////////////这后面是不确定的部分
             Mat img_matches;
 
-            drawMatches( img_object, object_image_KeyPoint, img_scene_mat[i], scene_image_KeyPoint[i],
+            drawMatches( img_object, object_image_KeyPoint, img_scene_mat[i], scene_image_KeyPoint_first_query[i],
                         good_matches_tmp, img_matches, Scalar::all(-1), Scalar::all(-1),
                         vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
          //-- Localize the object
-            std::vector<Point2f> obj;
-            std::vector<Point2f> scene;
+            vector<Point2f> obj_tmp;
+            vector<Point2f> scene_tmp;
 
             for(int j=0; j < good_matches_tmp.size(); j++)
             {
             //-- Get the keypoints from the good matches
-                obj.push_back( object_image_KeyPoint[ good_matches_tmp[j].queryIdx ].pt );
-                scene.push_back( scene_image_KeyPoint[i][ good_matches_tmp[j].trainIdx ].pt );
+                obj_tmp.push_back( object_image_KeyPoint[ good_matches_tmp[j].queryIdx ].pt );
+                scene_tmp.push_back( scene_image_KeyPoint_first_query[i][ good_matches_tmp[j].trainIdx ].pt );
             }
 
-            Mat H = findHomography( obj, scene, CV_RANSAC );//
+            obj_pts_first_query.push_back(obj_tmp);
+            scene_pts_first_query.push_back(scene_tmp);
 
+            Mat homograph_tmp = findHomography( obj_tmp, scene_tmp, CV_RANSAC );//
+            homograph_for_matches_first_query.push_back(homograph_tmp);
           //-- Get the corners from the image_1 ( the object to be "detected" )
             std::vector<Point2f> obj_corners(4);
+          // draw the four corners of the query image.
             obj_corners[0] = cvPoint(0,0); obj_corners[1] = cvPoint( img_object.cols, 0 );
             obj_corners[2] = cvPoint( img_object.cols, img_object.rows ); obj_corners[3] = cvPoint( 0, img_object.rows );
+
             std::vector<Point2f> scene_corners(4);
           //--
-            perspectiveTransform( obj_corners, scene_corners, H);
+            perspectiveTransform( obj_corners, scene_corners, homograph_tmp);
+
+
 
           //-- Draw lines between the corners (the mapped object in the scene - image_2 )
             line( img_matches, scene_corners[0] + Point2f( img_object.cols, 0), scene_corners[1] + Point2f( img_object.cols, 0), Scalar(0, 255, 0), 4 );
@@ -1207,7 +1236,7 @@ int main()
             line( img_matches, scene_corners[3] + Point2f( img_object.cols, 0), scene_corners[0] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
 
 
-            img_matches_draw.push_back(img_matches);
+            img_matches_draw_first_query.push_back(img_matches);
           //-- Show detected matches
 //            int len_for_show = strlen(new_coming_file)+strlen(image_dirs[i])+1;
 //            char buf_for_show[len_for_show];
@@ -1217,12 +1246,22 @@ int main()
 
 
 
-            imshow( image_dirs[i], img_matches_draw[i] );
+            imshow( image_dirs[i], img_matches_draw_first_query[i] );
             waitKey(0);
             destroyWindow(image_dirs[i]);
-
-
     }
+
+    // re-query
+    int re_query_limit = 10;
+    vector<Mat> VW_intra;
+    for(int i=0; i<top_ranking_limit; ++i){
+    VW_intra.push_back(count_the_des[BoW_dis_ranking.at<int>(0,i)]);
+    }
+    Mat VW_averaged = VW_average_operation(VW_intra, num_of_cluster);
+    //取30张图片
+
+
+
     return 0;
 }
 
