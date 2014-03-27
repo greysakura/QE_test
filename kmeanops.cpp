@@ -880,9 +880,6 @@ int main()
         tf_idf_out << endl;
     }
     tf_idf_out << "Step5: idf" << endl;
-//    for(int i=0; i < K; ++i){
-//        tf_idf_out << des_idf.at<double>(0,i) << endl;
-//    }
     tf_idf_out << num_by_des_sum << endl;
     tf_idf_out << des_idf << endl;
     tf_idf_out << "Step6: tf_idf" << endl;
@@ -1024,6 +1021,7 @@ int main()
     //接下来又要读写字符串了
     vector<string> image_dirs;
     vector<string> image_dirs_SIFT;
+    vector<string> image_dirs_kpts;
     vector<Mat> img_scene_mat;
     vector<int> image_descriptor_counts;
     //int len_dir = strlen(buf)+strlen(suffix_dir)+1;
@@ -1098,9 +1096,15 @@ int main()
     vector<Mat> homograph_for_matches_first_query;
     vector< vector<Point2f> > obj_corners_first_query;
     vector< vector<Point2f> > scene_corners_first_query;
-
+    vector<int> abandoned_image;
+    int well_matching_image = 0;
     for(int i=0; i< top_ranking_limit; ++i){
+            //
+            bool has_enough_good_match = true;
             //当确定是这张图片的时候
+            char filename_image_dir[_MAX_PATH];
+            memset(filename_image_dir, 0, _MAX_PATH);
+            image_dirs[i].copy(filename_image_dir,image_dirs[i].length(),0);
             memset(filename_short_02, 0, _MAX_PATH);
             //image_dirs.push_back(image_file_string);
             img_scene_tmp = imread(image_dirs[i], 0);
@@ -1121,8 +1125,9 @@ int main()
             snprintf(buf_kpts, len_kpts, "%s%s", filename_short_02, suffix_kpts);buf_kpts[len_kpts-1] = 0;
             string image_kpts_string = buf_kpts;
 
-            cout << "Target: " << image_SIFT_string << endl;
+            cout << "Target: " << image_dirs[i] << endl;
             image_dirs_SIFT.push_back(image_SIFT_string);
+            image_dirs_kpts.push_back(image_kpts_string);
             vector<Mat> scene_image_descriptor_tmp;
             vector<KeyPoint> scene_image_KeyPoint_tmp;
             dir_for_SIFT.open(buf_SIFT, ios::in);
@@ -1173,92 +1178,174 @@ int main()
             scene_image_descriptor_first_query[i].convertTo(descriptor_intra,CV_32F);
             new_descriptor.convertTo(new_descriptor,CV_32F);
             matcher.match( new_descriptor, descriptor_intra, matches_tmp );
-            double max_dist = 0; double min_dist = 1000;
+
+            // Ranking matches on distance.
+            Mat match_check = Mat::zeros(1,matches_tmp.size(),CV_64F);
+            Mat match_check_Idx;
 
             //-- Quick calculation of max and min distances between keypoints
             for( int j = 0; j < new_descriptor.rows; j++ ){
-                    double dist = matches_tmp[j].distance;
-                    if( dist < min_dist ) min_dist = dist;
-                    if( dist > max_dist ) max_dist = dist;
+                    match_check.at<double>(0,j) = matches_tmp[j].distance;
             }
+
+            cv::sortIdx(match_check,match_check_Idx, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
+            double max_dist = match_check.at<double>(0,match_check_Idx.at<int>(0,(matches_tmp.size()-1)));
+            double min_dist = match_check.at<double>(0,match_check_Idx.at<int>(0,0));
             cout << "Max dist : " << max_dist << endl;
             cout << "Min dist : " << min_dist << endl;
-              //-- Draw only "good" matches (i.e. whose distance is less than 3*min_dist )
 
+            if(match_check.at<double>(0,match_check_Idx.at<int>(0,20)) > 280.0){
+                cout << "Not enough good matches." << endl;
+                has_enough_good_match = false;
+            }
 
+            //-- Draw only "good" matches (i.e. whose distance is less than 3*min_dist )
+
+            int num_of_good_matches = 0;
             for( int j = 0; j < new_descriptor.rows; j++ ){
-                if( matches_tmp[j].distance < 1.5*min_dist ){
+                if((matches_tmp[match_check_Idx.at<int>(0,j)].distance < 1.5* min_dist) && (matches_tmp[match_check_Idx.at<int>(0,j)].distance < 280.0)){
                     good_matches_tmp.push_back( matches_tmp[j]);
+                    num_of_good_matches++;
+                }
+                if(num_of_good_matches == 30){ // take only top 30
+                    break;
+                }
+                if(j > 100){
+                    break;
                 }
             }
+            cout << "num_of_good_matches: " << num_of_good_matches << endl;
             matches_first_query.push_back(matches_tmp);
             good_matches_first_query.push_back(good_matches_tmp);
 
-//////////////////////////////这后面是不确定的部分
-            Mat img_matches;
 
-            drawMatches( img_object, object_image_KeyPoint, img_scene_mat[i], scene_image_KeyPoint_first_query[i],
-                        good_matches_tmp, img_matches, Scalar::all(-1), Scalar::all(-1),
-                        vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
+            if(has_enough_good_match == true){
+                cout << image_dirs[i] << " is a good match to query image. Accepted." << endl;
+                Mat img_matches;
+                drawMatches( img_object, object_image_KeyPoint, img_scene_mat[i], scene_image_KeyPoint_first_query[i],
+                            good_matches_tmp, img_matches, Scalar::all(-1), Scalar::all(-1),
+                            vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS );
 
-         //-- Localize the object
-            vector<Point2f> obj_tmp;
-            vector<Point2f> scene_tmp;
+                //-- Localize the object
+                vector<Point2f> obj_tmp;
+                vector<Point2f> scene_tmp;
 
-            for(int j=0; j < good_matches_tmp.size(); j++)
-            {
-            //-- Get the keypoints from the good matches
-                obj_tmp.push_back( object_image_KeyPoint[ good_matches_tmp[j].queryIdx ].pt );
-                scene_tmp.push_back( scene_image_KeyPoint_first_query[i][ good_matches_tmp[j].trainIdx ].pt );
+                for(int j=0; j < good_matches_tmp.size(); j++){
+                //-- Get the keypoints from the good matches
+                    obj_tmp.push_back( object_image_KeyPoint[ good_matches_tmp[j].queryIdx ].pt );
+                    scene_tmp.push_back( scene_image_KeyPoint_first_query[i][ good_matches_tmp[j].trainIdx ].pt );
+                }
+
+                obj_pts_first_query.push_back(obj_tmp);
+                scene_pts_first_query.push_back(scene_tmp);
+
+                Mat homograph_tmp = findHomography( obj_tmp, scene_tmp, CV_RANSAC );//
+                homograph_for_matches_first_query.push_back(homograph_tmp);
+                //-- Get the corners from the image_1 ( the object to be "detected" )
+                std::vector<Point2f> obj_corners(4);
+                // draw the four corners of the query image.
+                obj_corners[0] = cvPoint(0,0); obj_corners[1] = cvPoint( img_object.cols, 0 );
+                obj_corners[2] = cvPoint( img_object.cols, img_object.rows ); obj_corners[3] = cvPoint( 0, img_object.rows );
+
+                std::vector<Point2f> scene_corners(4);
+                //--
+                perspectiveTransform( obj_corners, scene_corners, homograph_tmp);
+
+                //-- Draw lines between the corners (the mapped object in the scene - image_2 )
+                line( img_matches, scene_corners[0] + Point2f( img_object.cols, 0), scene_corners[1] + Point2f( img_object.cols, 0), Scalar(0, 255, 255), 4 );
+                line( img_matches, scene_corners[1] + Point2f( img_object.cols, 0), scene_corners[2] + Point2f( img_object.cols, 0), Scalar( 0, 255, 255), 4 );
+                line( img_matches, scene_corners[2] + Point2f( img_object.cols, 0), scene_corners[3] + Point2f( img_object.cols, 0), Scalar( 0, 255, 255), 4 );
+                line( img_matches, scene_corners[3] + Point2f( img_object.cols, 0), scene_corners[0] + Point2f( img_object.cols, 0), Scalar( 0, 255, 255), 4 );
+
+                img_matches_draw_first_query.push_back(img_matches);
+                imshow( image_dirs[i], img_matches_draw_first_query[i-abandoned_image.size()] );
+                waitKey(0);
+                destroyWindow(image_dirs[i]);
+                well_matching_image += 1;
+            }else{
+                abandoned_image.push_back(i);
+                cout << image_dirs[i] << " is NOT a good match to query image. Abandoned." << endl;
             }
-
-            obj_pts_first_query.push_back(obj_tmp);
-            scene_pts_first_query.push_back(scene_tmp);
-
-            Mat homograph_tmp = findHomography( obj_tmp, scene_tmp, CV_RANSAC );//
-            homograph_for_matches_first_query.push_back(homograph_tmp);
-          //-- Get the corners from the image_1 ( the object to be "detected" )
-            std::vector<Point2f> obj_corners(4);
-          // draw the four corners of the query image.
-            obj_corners[0] = cvPoint(0,0); obj_corners[1] = cvPoint( img_object.cols, 0 );
-            obj_corners[2] = cvPoint( img_object.cols, img_object.rows ); obj_corners[3] = cvPoint( 0, img_object.rows );
-
-            std::vector<Point2f> scene_corners(4);
-          //--
-            perspectiveTransform( obj_corners, scene_corners, homograph_tmp);
-
-
-
-          //-- Draw lines between the corners (the mapped object in the scene - image_2 )
-            line( img_matches, scene_corners[0] + Point2f( img_object.cols, 0), scene_corners[1] + Point2f( img_object.cols, 0), Scalar(0, 255, 0), 4 );
-            line( img_matches, scene_corners[1] + Point2f( img_object.cols, 0), scene_corners[2] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
-            line( img_matches, scene_corners[2] + Point2f( img_object.cols, 0), scene_corners[3] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
-            line( img_matches, scene_corners[3] + Point2f( img_object.cols, 0), scene_corners[0] + Point2f( img_object.cols, 0), Scalar( 0, 255, 0), 4 );
-
-
-            img_matches_draw_first_query.push_back(img_matches);
-          //-- Show detected matches
-//            int len_for_show = strlen(new_coming_file)+strlen(image_dirs[i])+1;
-//            char buf_for_show[len_for_show];
-//            memset(buf_for_show,len_for_show,0);
-//            snprintf(buf_for_show, len_for_show, "%s%s", new_coming_file, image_dirs[i]);buf_for_show[len_for_show-1] = 0;
-
-
-
-
-            imshow( image_dirs[i], img_matches_draw_first_query[i] );
-            waitKey(0);
-            destroyWindow(image_dirs[i]);
     }
+    if(abandoned_image.size() != 0){
+        for(size_t i = 0; i < abandoned_image.size(); ++i){
+            vector<Mat>::iterator iter_Mat = img_scene_mat.begin() + abandoned_image[i] ;
+            img_scene_mat.erase(iter_Mat);
 
+            vector<string>::iterator iter_string = image_dirs.begin() + abandoned_image[i];
+            image_dirs.erase(iter_string);
+
+            iter_string = image_dirs_SIFT.begin() + abandoned_image[i];
+            image_dirs_SIFT.erase(iter_string);
+
+            iter_string = image_dirs_kpts.begin() + abandoned_image[i];
+            image_dirs_kpts.erase(iter_string);
+        }
+    }
     // re-query
     int re_query_limit = 10;
     vector<Mat> VW_intra;
     for(int i=0; i<top_ranking_limit; ++i){
     VW_intra.push_back(count_the_des[BoW_dis_ranking.at<int>(0,i)]);
+
     }
     Mat VW_averaged = VW_average_operation(VW_intra, num_of_cluster);
+    VW_averaged.convertTo(VW_averaged, CV_64F);
     //取30张图片
+    //VW保存在哪儿呢？    old_VW
+    //
+
+    Mat Requery_key_image = BoW_dis_ranking.colRange(top_ranking_limit, top_ranking_limit + re_query_limit);
+    Mat Requery_key_image_Idx;
+    cout << BoW_dis_ranking << endl;
+    cout << Requery_key_image << endl;
+    Mat VW_distance_requery = Mat::zeros(1, image_count, CV_64F);
+    for(int i=0; i < Requery_key_image.rows; ++i){
+        Mat inter_VW = VW_averaged.mul(tf_idf_normalized.row(Requery_key_image.at<int>(0,i)))
+            -old_VW.row(Requery_key_image.at<int>(0,i)).mul(tf_idf_normalized.row(Requery_key_image.at<int>(0,i)));
+        VW_distance_requery.at<double>(0,i) = inter_VW.dot(inter_VW);
+    }
+    cv::sortIdx(VW_distance_requery, Requery_key_image_Idx, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
+
+//    dir_for_ransac.open(buf_dir, ios::in);
+//    vector<string> image_dirs_requery;
+//    vector<int> image_descriptor_counts_requery;
+//    // read their dirs
+//    for(int i=0; i < re_query_limit; ++i){
+//        dir_for_ransac >> image_file_string;
+//        dir_for_ransac >> intra;
+//
+//        //拆开写成两个循环比较好
+//        if(locate_key_image(i, top_ranking_limit, re_query_limit, BoW_dis_ranking)==true){
+//            image_dirs_requery.push_back(image_file_string);
+//            image_descriptor_counts_requery.push_back(intra);
+//        }
+//        image_file_string.clear();
+//    }
+//
+//    vector<string> image_dirs_requery_tmp;
+//    vector<int> image_descriptor_counts_requery_tmp;
+//    for(int i=0; i < re_query_limit; ++i){
+//        string intra_str = image_dirs_requery[Requery_key_image.at<int>(0,i)];
+//        image_dirs_requery_tmp.push_back(intra_str);
+//        int intra_des_count = image_descriptor_counts_requery[Requery_key_image.at<int>(0,i)];
+//        image_descriptor_counts_requery_tmp.push_back(intra_des_count);
+//    }
+//    vector <string>().swap(image_dirs_requery);
+//    vector <int>().swap(image_descriptor_counts_requery);
+//
+//    for(int i=0; i < re_query_limit; ++i){
+//        image_dirs_requery.push_back(image_dirs_requery_tmp[i]);
+//        image_descriptor_counts_requery.push_back(image_descriptor_counts_requery_tmp[i]);
+//        cout << image_dirs_requery[i] << " " << image_descriptor_counts_requery[i] << endl;
+//
+//    }
+//    vector <string>().swap(image_dirs_requery_tmp);
+//    vector <int>().swap(image_descriptor_counts_requery_tmp);
+//
+//    dir_for_ransac.close();
+
+
 
 
 
