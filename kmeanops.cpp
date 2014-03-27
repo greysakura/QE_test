@@ -375,10 +375,6 @@ bool locate_key_image(int i, int key_image_start, int key_image_num, Mat &Rankin
         cout << "error! locate_key_image error!!!" << endl;
         return -4;
     }
-    if(key_image_start >= key_image_num){
-        cout << "error! key_image_start should be smaller than key_image_num." << endl;
-        return -5;
-    }
     bool exsit = false;
     for(int j=key_image_start; j< (key_image_start+key_image_num); ++j){
         if(Ranking_Mat.at<int>(0,j)==i){
@@ -1298,52 +1294,62 @@ int main()
     Mat Requery_key_image = BoW_dis_ranking.colRange(top_ranking_limit, top_ranking_limit + re_query_limit);
     Mat Requery_key_image_Idx;
     cout << BoW_dis_ranking << endl;
+    cout << "Requery_key_image" << endl;
     cout << Requery_key_image << endl;
-    Mat VW_distance_requery = Mat::zeros(1, image_count, CV_64F);
+    Mat VW_distance_requery = Mat::zeros(1, re_query_limit, CV_64F);
     for(int i=0; i < Requery_key_image.rows; ++i){
         Mat inter_VW = VW_averaged.mul(tf_idf_normalized.row(Requery_key_image.at<int>(0,i)))
             -old_VW.row(Requery_key_image.at<int>(0,i)).mul(tf_idf_normalized.row(Requery_key_image.at<int>(0,i)));
         VW_distance_requery.at<double>(0,i) = inter_VW.dot(inter_VW);
     }
     cv::sortIdx(VW_distance_requery, Requery_key_image_Idx, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
+    cout << "Requery_key_image_Idx" << endl;
+    cout << Requery_key_image_Idx << endl;
 
-//    dir_for_ransac.open(buf_dir, ios::in);
-//    vector<string> image_dirs_requery;
-//    vector<int> image_descriptor_counts_requery;
-//    // read their dirs
-//    for(int i=0; i < re_query_limit; ++i){
-//        dir_for_ransac >> image_file_string;
-//        dir_for_ransac >> intra;
-//
-//        //拆开写成两个循环比较好
-//        if(locate_key_image(i, top_ranking_limit, re_query_limit, BoW_dis_ranking)==true){
-//            image_dirs_requery.push_back(image_file_string);
-//            image_descriptor_counts_requery.push_back(intra);
-//        }
-//        image_file_string.clear();
-//    }
-//
-//    vector<string> image_dirs_requery_tmp;
-//    vector<int> image_descriptor_counts_requery_tmp;
-//    for(int i=0; i < re_query_limit; ++i){
-//        string intra_str = image_dirs_requery[Requery_key_image.at<int>(0,i)];
-//        image_dirs_requery_tmp.push_back(intra_str);
-//        int intra_des_count = image_descriptor_counts_requery[Requery_key_image.at<int>(0,i)];
-//        image_descriptor_counts_requery_tmp.push_back(intra_des_count);
-//    }
-//    vector <string>().swap(image_dirs_requery);
-//    vector <int>().swap(image_descriptor_counts_requery);
-//
-//    for(int i=0; i < re_query_limit; ++i){
-//        image_dirs_requery.push_back(image_dirs_requery_tmp[i]);
-//        image_descriptor_counts_requery.push_back(image_descriptor_counts_requery_tmp[i]);
-//        cout << image_dirs_requery[i] << " " << image_descriptor_counts_requery[i] << endl;
-//
-//    }
-//    vector <string>().swap(image_dirs_requery_tmp);
-//    vector <int>().swap(image_descriptor_counts_requery_tmp);
-//
-//    dir_for_ransac.close();
+////
+
+    ifstream dir_for_requery;
+    dir_for_requery.open(buf_dir, ios::in);
+    vector<string> image_dirs_requery;
+    vector<int> image_descriptor_counts_requery;
+    // read their dirs
+    for(int i=0; i < image_count; ++i){
+        dir_for_requery >> image_file_string;
+        dir_for_requery >> intra;
+
+        //拆开写成两个循环比较好
+        if(locate_key_image(i, 0, re_query_limit, Requery_key_image)==true){
+            image_dirs_requery.push_back(image_file_string);
+            cout << image_file_string << endl;
+            image_descriptor_counts_requery.push_back(intra);
+        }
+        image_file_string.clear();
+    }
+    cout << "Requery_key_image: "  << Requery_key_image << endl;
+    vector<string> image_dirs_requery_tmp;
+    vector<int> image_descriptor_counts_requery_tmp;
+    for(int i=0; i < re_query_limit; ++i){
+        cout << image_dirs_requery[Requery_key_image_Idx.at<int>(0,i)] << endl;
+        string intra_str = image_dirs_requery[Requery_key_image_Idx.at<int>(0,i)];
+        image_dirs_requery_tmp.push_back(intra_str);
+        int intra_des_count = image_descriptor_counts_requery[Requery_key_image_Idx.at<int>(0,i)];
+        image_descriptor_counts_requery_tmp.push_back(intra_des_count);
+    }
+    vector <string>().swap(image_dirs_requery);
+    vector <int>().swap(image_descriptor_counts_requery);
+
+///////////////////////////////////////////////////////
+
+    for(int i=0; i < re_query_limit; ++i){
+        image_dirs_requery.push_back(image_dirs_requery_tmp[i]);
+        image_descriptor_counts_requery.push_back(image_descriptor_counts_requery_tmp[i]);
+        cout << image_dirs_requery[i] << " " << image_descriptor_counts_requery[i] << endl;
+
+    }
+    vector <string>().swap(image_dirs_requery_tmp);
+    vector <int>().swap(image_descriptor_counts_requery_tmp);
+
+    dir_for_requery.close();
 
 
 
